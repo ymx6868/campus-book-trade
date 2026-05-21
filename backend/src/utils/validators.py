@@ -54,3 +54,81 @@ class UserValidator:
             return False, '用户名和密码不能为空'
 
         return True, None
+        class BookValidator:
+    """书籍数据校验"""
+
+    VALID_CONDITIONS = {'new', 'like_new', 'good', 'fair', 'poor'}
+    VALID_STATUSES = {'on_sale', 'sold', 'off_shelf'}
+
+    MAX_TITLE_LENGTH = 100
+    MAX_AUTHOR_LENGTH = 50
+    MAX_DESCRIPTION_LENGTH = 2000
+
+    @classmethod
+    def validate_create(cls, data: dict) -> tuple:
+        """校验创建书籍数据"""
+        if not data:
+            return False, '请求体不能为空'
+
+        # 书名校验
+        title = data.get('title', '').strip()
+        if not title:
+            return False, '书名不能为空'
+        if len(title) > cls.MAX_TITLE_LENGTH:
+            return False, f'书名不能超过{cls.MAX_TITLE_LENGTH}个字符'
+
+        # 价格校验
+        price = data.get('price')
+        if price is None:
+            return False, '价格不能为空'
+        try:
+            price = float(price)
+            if price <= 0:
+                return False, '价格必须大于0'
+            if price > 99999:
+                return False, '价格不能超过99999'
+        except (ValueError, TypeError):
+            return False, '价格格式不正确'
+
+        # 作者校验（可选）
+        author = data.get('author', '')
+        if author and len(author) > cls.MAX_AUTHOR_LENGTH:
+            return False, f'作者名不能超过{cls.MAX_AUTHOR_LENGTH}个字符'
+
+        # 描述校验（可选）
+        description = data.get('description', '')
+        if description and len(description) > cls.MAX_DESCRIPTION_LENGTH:
+            return False, f'描述不能超过{cls.MAX_DESCRIPTION_LENGTH}个字符'
+
+        # 成色校验
+        condition = data.get('condition', 'good')
+        if condition not in cls.VALID_CONDITIONS:
+            return False, f'成色无效，可选：{", ".join(cls.VALID_CONDITIONS)}'
+
+        return True, None
+
+    @classmethod
+    def validate_update(cls, data: dict) -> tuple:
+        """校验更新书籍数据"""
+        if 'title' in data:
+            title = data['title'].strip()
+            if not title:
+                return False, '书名不能为空'
+            if len(title) > cls.MAX_TITLE_LENGTH:
+                return False, f'书名不能超过{cls.MAX_TITLE_LENGTH}个字符'
+
+        if 'price' in data:
+            try:
+                price = float(data['price'])
+                if price <= 0:
+                    return False, '价格必须大于0'
+            except (ValueError, TypeError):
+                return False, '价格格式不正确'
+
+        if 'condition' in data and data['condition'] not in cls.VALID_CONDITIONS:
+            return False, '成色无效'
+
+        if 'status' in data and data['status'] not in cls.VALID_STATUSES:
+            return False, '状态无效'
+
+        return True, None
