@@ -5,7 +5,7 @@ import jwt
 from functools import wraps
 import re
 
-from .models.user import db, User, Book, Order
+from .models.user import db, User, Book, Order, Comment
 
 
 def create_app(config=None):
@@ -355,6 +355,113 @@ def create_app(config=None):
                 "id": order.id,
                 "status": order.status
             }
+        ), 200
+
+            # ====================== 留言接口 ======================
+    @app.route('/api/books/<int:book_id>/comments', methods=['POST'])
+    @token_required
+    def create_comment(user, book_id):
+        """发表留言"""
+        data = request.json
+        content = data.get('content', '').strip()
+        parent_id = data.get('parent_id', None)
+
+        if not content:
+            return jsonify(error="留言内容不能为空"), 400
+        if len(content) > 500:
+            return jsonify(error="留言内容不能超过500字符"), 400
+
+        # 检查书籍存在
+        book = Book.query.filter_by(id=book_id, is_deleted=False).first()
+        if not book:
+            return jsonify(error="书籍不存在"), 404
+
+        # 如果是回复，检查父留言存在
+        if parent_id:
+            parent = Comment.query.filter_by(id=parent_id, is_deleted=False).first()
+            if not parent:
+                return jsonify(error="回复的留言不存在"), 404
+
+        comment = Comment(
+            content=content,
+            user_id=user.id,
+            book_id=book_id,
+            parent_id=parent_id
+        )
+        db.session.add(comment)
+        db.session.commit()
+
+        return jsonify(
+            message="留言成功",
+            comment={
+                "id": comment.id,
+                "content": comment.content,
+                "user_id": comment.user_id,
+                "user_name": user.username,
+                "book_id": comment.book_id,
+                "parent_id": comment.parent_id,
+                "created_at": comment.created_at.isoformat()
+            }
+        ), 201
+
+    @app.route('/api/books/<int:book_id>/comments', methods=['GET'])
+    def get_comments(book_id):
+        """获取某本书的所有留言"""
+        # 检查书籍存在
+        book = Book.query.filter_by(id=book_id, is_deleted=False).first()
+        if not book:
+            return jsonify(error="书籍不存在"), 404
+
+        comments = Comment.query.filter_by(
+            book_id=book_id, is_deleted=False
+        ).order_by(Comment.created_at.desc()).all()
+
+        return jsonify(
+            total=len(comments),
+            comments=[{
+                "id": c.id,
+                "content": c.content,
+                "user_id": c.user_id,
+                "user_name": c.user.username if c.user else None,
+                "parent_id": c.parent_id,
+                "created_at": c.created_at.isoformat()
+            } for c in comments]
+        ), 200
+
+    @app.route('/api/comments/<int:id>', methods=['DELETE'])
+    @token_required
+    def delete_comment(user, id):
+        """删除留言（仅作者可删）"""
+        comment = Comment.query.filter_by(id=id, is_deleted=False).first()
+        if not comment:
+            return jsonify(error="留言不存在"), 404
+
+        if comment.user_id != user.id:
+            return jsonify(error="无权删除此留言"), 403
+
+        comment.is_deleted = True
+        db.session.commit()
+
+        return jsonify(message="删除成功"), 200
+
+    @app.route('/api/comments/my', methods=['GET'])
+    @token_required
+    def get_my_comments(user):
+        """获取我的留言列表"""
+        comments = Comment.query.filter_by(
+            user_id=user.id, is_deleted=False
+        ).order_by(Comment.created_at.desc()).all()
+
+        return jsonify(
+            total=len(comments),
+            comments=[{
+                "id": c.id,
+                "content": c.content,
+                "book_id": c.book_id,
+                "book_title": c.book.title if c.book else None,
+                "parent_id": c.parent_id,
+                "created_at": c.created_at.isoformat()
+            } for c in comments]
         ), 200
 
     return app

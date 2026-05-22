@@ -44,3 +44,19 @@ class Order(db.Model):
 
     buyer = db.relationship('User', foreign_keys=[buyer_id])
     book = db.relationship('Book', foreign_keys=[book_id])
+
+    
+
+# 留言模型
+class Comment(db.Model):
+    __tablename__ = 'comment'
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    book_id = db.Column(db.Integer, db.ForeignKey('book.id'), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)  # 回复的留言id
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    book = db.relationship('Book', foreign_keys=[book_id])
